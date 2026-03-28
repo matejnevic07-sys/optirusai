@@ -1,8 +1,13 @@
 'use strict';
 
-// ── BURGER MENU ──────────────────────────────
+// ── NAV: scrolled class + burger ─────────────
+const nav    = document.querySelector('.nav');
 const burger = document.querySelector('.burger');
 const mobileMenu = document.querySelector('.nav__mobile');
+
+window.addEventListener('scroll', () => {
+  nav.classList.toggle('scrolled', window.scrollY > 20);
+}, { passive: true });
 
 if (burger && mobileMenu) {
   burger.addEventListener('click', () => {
@@ -21,14 +26,26 @@ if (burger && mobileMenu) {
   });
 }
 
-// ── SCROLL REVEAL ────────────────────────────
-const revealEls = document.querySelectorAll(
-  '.hero__inner, .section__intro, .service-card, .about__text, .about__visual, .why-item, .contact__info, .contact__form'
-);
+// ── STAGGER REVEAL (30–50ms per item) ────────
+const STAGGER = 45; // ms
 
-revealEls.forEach((el, i) => {
-  el.classList.add('reveal');
-  el.style.transitionDelay = `${(i % 3) * 80}ms`;
+const groups = [
+  { selector: '.hero__inner',    delay: 0 },
+  { selector: '.section__intro', delay: 0 },
+  { selector: '.problem-item',   stagger: true },
+  { selector: '.service-card',   stagger: true },
+  { selector: '.about__text',    delay: 0 },
+  { selector: '.urgency-main',   delay: 0 },
+  { selector: '.guarantee-box',  delay: 80 },
+  { selector: '.contact__info',  delay: 0 },
+  { selector: '.contact__form',  delay: 80 },
+];
+
+groups.forEach(({ selector, delay = 0, stagger = false }) => {
+  document.querySelectorAll(selector).forEach((el, i) => {
+    el.classList.add('reveal');
+    el.style.transitionDelay = stagger ? `${i * STAGGER}ms` : `${delay}ms`;
+  });
 });
 
 const revealObs = new IntersectionObserver((entries) => {
@@ -38,61 +55,68 @@ const revealObs = new IntersectionObserver((entries) => {
       revealObs.unobserve(e.target);
     }
   });
-}, { threshold: 0.1 });
+}, { threshold: 0.08 });
 
-revealEls.forEach(el => revealObs.observe(el));
+document.querySelectorAll('.reveal').forEach(el => revealObs.observe(el));
+
+// ── SERVICE CARD MOUSE GLOW ───────────────────
+document.querySelectorAll('.service-card').forEach(card => {
+  card.addEventListener('mousemove', (e) => {
+    const rect = card.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width  * 100).toFixed(1);
+    const y = ((e.clientY - rect.top)  / rect.height * 100).toFixed(1);
+    card.style.setProperty('--mx', `${x}%`);
+    card.style.setProperty('--my', `${y}%`);
+  });
+  card.addEventListener('mouseleave', () => {
+    card.style.removeProperty('--mx');
+    card.style.removeProperty('--my');
+  });
+});
 
 // ── CONTACT FORM ─────────────────────────────
-const form = document.getElementById('contact-form');
+const form       = document.getElementById('contact-form');
 const formSuccess = document.getElementById('form-success');
 
 if (form) {
+  const getEl  = id => document.getElementById(id);
+  const getErr = id => document.getElementById(`${id}-error`);
+
+  const clearErr = id => {
+    getEl(id)?.classList.remove('error');
+    const e = getErr(id); if (e) e.textContent = '';
+  };
+
+  const setErr = (id, msg) => {
+    getEl(id)?.classList.add('error');
+    const e = getErr(id); if (e) e.textContent = msg;
+  };
+
+  ['ime', 'email', 'poruka'].forEach(id => {
+    getEl(id)?.addEventListener('input', () => clearErr(id));
+  });
+
+  const isEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
   const validate = () => {
     let ok = true;
-    const fields = [
-      { id: 'ime',    errId: 'ime-error',    msg: 'Ime je obavezno.' },
-      { id: 'poruka', errId: 'poruka-error', msg: 'Poruka je obavezna.' },
-    ];
-    const emailEl = document.getElementById('email');
-    const emailErr = document.getElementById('email-error');
+    clearErr('ime'); clearErr('email'); clearErr('poruka');
 
-    fields.forEach(({ id, errId, msg }) => {
-      const el = document.getElementById(id);
-      const err = document.getElementById(errId);
-      if (!el.value.trim()) {
-        el.classList.add('error');
-        err.textContent = msg;
-        ok = false;
-      } else {
-        el.classList.remove('error');
-        err.textContent = '';
-      }
-    });
-
-    const emailVal = emailEl.value.trim();
-    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal);
-    if (!emailOk) {
-      emailEl.classList.add('error');
-      emailErr.textContent = emailVal ? 'Unesite ispravnu email adresu.' : 'Email je obavezan.';
-      ok = false;
-    } else {
-      emailEl.classList.remove('error');
-      emailErr.textContent = '';
+    if (!getEl('ime').value.trim()) {
+      setErr('ime', 'Ime je obavezno.'); ok = false;
     }
 
+    const em = getEl('email').value.trim();
+    if (!em)            { setErr('email', 'Email je obavezan.'); ok = false; }
+    else if (!isEmail(em)) { setErr('email', 'Unesite ispravnu email adresu.'); ok = false; }
+
+    if (!getEl('poruka').value.trim()) {
+      setErr('poruka', 'Poruka je obavezna.'); ok = false;
+    }
     return ok;
   };
 
-  // Clear error on input
-  form.querySelectorAll('input, textarea').forEach(el => {
-    el.addEventListener('input', () => {
-      el.classList.remove('error');
-      const err = document.getElementById(`${el.id}-error`);
-      if (err) err.textContent = '';
-    });
-  });
-
-  form.addEventListener('submit', async (e) => {
+  form.addEventListener('submit', async e => {
     e.preventDefault();
     if (!validate()) return;
 
@@ -100,7 +124,7 @@ if (form) {
     btn.disabled = true;
     btn.textContent = 'Slanje...';
 
-    // --- Zameni YOUR_FORM_ID na formspree.io sa tvojim ID-jem ---
+    // Zameni YOUR_FORM_ID sa ID-jem sa formspree.io
     const ENDPOINT = 'https://formspree.io/f/YOUR_FORM_ID';
 
     try {
@@ -108,26 +132,20 @@ if (form) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({
-          ime:    document.getElementById('ime').value.trim(),
-          email:  document.getElementById('email').value.trim(),
-          usluga: document.getElementById('usluga').value,
-          poruka: document.getElementById('poruka').value.trim(),
+          ime:    getEl('ime').value.trim(),
+          email:  getEl('email').value.trim(),
+          usluga: getEl('usluga').value,
+          poruka: getEl('poruka').value.trim(),
         }),
       });
-
       if (res.ok) {
         form.reset();
         if (formSuccess) formSuccess.hidden = false;
-      } else {
-        throw new Error();
-      }
+      } else { throw new Error(); }
     } catch {
-      // Fallback — otvori email klijent
       const s = encodeURIComponent('Upit sa OptirusAI sajta');
       const b = encodeURIComponent(
-        `Ime: ${document.getElementById('ime').value}\n` +
-        `Email: ${document.getElementById('email').value}\n` +
-        `Poruka: ${document.getElementById('poruka').value}`
+        `Ime: ${getEl('ime').value}\nEmail: ${getEl('email').value}\nPoruka: ${getEl('poruka').value}`
       );
       window.location.href = `mailto:optirusai@gmail.com?subject=${s}&body=${b}`;
     } finally {
